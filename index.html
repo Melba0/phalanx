@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Phalanx · 连兵棋 — 兵线会战</title>
+  <meta name="description" content="Phalanx（连兵棋·兵线会战）：无随机、完全信息的抽象策略棋。整段平移、顶头对撞、俘虏打入、入阵升变。含交互式教程、本地双人对弈、棋谱树分析、练习题与棋盘编辑器。">
+  <meta name="theme-color" content="#07090e">
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/board.css">
+  <link rel="stylesheet" href="assets/css/pages.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#/" aria-label="返回首页">
+      <span class="brand-mark"><span>兵</span></span>
+      <span class="brand-text">
+        <span class="brand-name">PHALANX</span>
+        <span class="brand-sub">连兵棋 · 兵线会战</span>
+      </span>
+    </a>
+    <nav class="nav" aria-label="主导航">
+      <a href="#/" data-nav="home">首页</a>
+      <a href="#/learn" data-nav="learn">教程</a>
+      <a href="#/play" data-nav="play">对弈</a>
+      <a href="#/analysis" data-nav="analysis">分析</a>
+      <a href="#/practice" data-nav="practice">练习</a>
+      <a href="#/editor" data-nav="editor">编辑器</a>
+      <a href="#/rules" data-nav="rules">规则</a>
+    </nav>
+    <div class="header-actions">
+      <span class="hdr-note"><i></i>纯静态 · 无联网 · 无 AI</span>
+      <button class="icon-btn" id="sound-toggle" type="button" aria-label="开关音效" title="音效"></button>
+    </div>
+  </header>
+
+  <main id="app">
+    <section class="page" data-page="home" id="page-home"></section>
+    <section class="page" data-page="learn" id="page-learn"></section>
+    <section class="page" data-page="play" id="page-play"></section>
+    <section class="page" data-page="analysis" id="page-analysis"></section>
+    <section class="page" data-page="practice" id="page-practice"></section>
+    <section class="page" data-page="editor" id="page-editor"></section>
+    <section class="page" data-page="rules" id="page-rules"></section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="foot-brand"><i></i>Phalanx<span class="dim" style="letter-spacing:.1em">连兵棋 · 兵线会战 · 规则 v3</span></div>
+      <div class="foot-links">
+        <a href="#/learn">交互教程</a>
+        <a href="#/play">本地对弈</a>
+        <a href="#/analysis">棋谱分析</a>
+        <a href="#/practice">练习题</a>
+        <a href="#/rules">规则速查</a>
+      </div>
+      <div>无随机 · 完全信息 · 纯静态</div>
+    </div>
+  </footer>
+
+  <div id="modal-root"></div>
+  <div id="toast-root" class="toast-root"></div>
+  <noscript><div style="padding:40px;text-align:center">本网站需要启用 JavaScript 才能运行棋局、分析与练习题。</div></noscript>
+
+  <script src="assets/js/engine.js"></script>
+  <script src="assets/js/pieces.js"></script>
+  <script src="assets/js/board.js"></script>
+  <script src="assets/js/ui.js"></script>
+  <script src="assets/js/lessons.js"></script>
+  <script src="assets/js/learn.js"></script>
+  <script src="assets/js/play.js"></script>
+  <script src="assets/js/analysis.js"></script>
+  <script src="assets/js/practice.js"></script>
+  <script src="assets/js/editor.js"></script>
+  <script src="assets/js/rules.js"></script>
+  <script src="assets/js/home.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

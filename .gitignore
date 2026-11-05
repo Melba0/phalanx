@@ -1,0 +1,29 @@
+# ---- OS / editor noise ----
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ---- Local dev / QA artifacts ----
+# headless-Chrome profiles, screenshots, CDP drivers, cross-check data
+_dev/
+tools/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# ---- Runtimes (the site itself has zero build step) ----
+node_modules/
+__pycache__/
+*.py[cod]
+
+# ---- Local environment ----
+.env
+.env.*
+!.env.example
+
+# ---- Removed reference implementation (rules were re-derived and cross-checked) ----
+参考.py
