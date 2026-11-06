@@ -27,3 +27,6 @@ __pycache__/
 
 # ---- Removed reference implementation (rules were re-derived and cross-checked) ----
 参考.py
+
+# ---- Local secrets (injected at deploy time) ----
+assets/js/puzzles-config.js

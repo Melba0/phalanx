@@ -158,7 +158,7 @@ JSON 形如 `{v, size, turn, pieces:["wK@e1","bP@d7+"], trays:[[...],[]]}`；`+`
 题库仓库：**https://github.com/Melba0/phalanxpuzzle**（公开），数据文件为 `puzzles.json`。站点不再内置示例题；所有题目都来自这个仓库。
 
 - **读取**：未连接 Token 时从 `raw.githubusercontent.com` 读取公开文件；连过 Token 时走 GitHub Contents API。读取成功会缓存到本机，网络失败时显示「离线缓存」。
-- **上传**：站点在 `assets/js/puzzles-config.js` 里内置了默认 Token，打开练习页即可直接「生成题目 → 上传到题库」，不用每次填写。所有拿到这个站点的人都会共享这个写权限；想换成自己的 Token，在「连接」里覆盖即可。
+- **上传**：本地默认 Token 在 `assets/js/puzzles-config.js`（已 gitignore，不进入仓库）；线上由托管平台的构建命令 `node scripts/inject-token.js` 从 `PHALANX_TOKEN` 环境变量注入。打开练习页即可直接「生成题目 → 上传到题库」，不用每次填写。所有拿到部署站点的人都会共享这个写权限；想换成自己的 Token，在「连接」里覆盖即可。
   - 校验要求：双方各恰好一枚王；解法是一条连续的合法走法序列；不支持括号变例。
   - 空仓库首次上传会自动创建 `puzzles.json` 和 `main` 分支（Contents API 失败时回退到 Git Data API）。
   - 题目字段：`id / title / code / solution / intro / hint / author / createdAt / side / steps`；`code` 是 `LBQ1.…` 局面代码，`solution` 是按顺序执行的走法数组。
@@ -168,11 +168,23 @@ JSON 形如 `{v, size, turn, pieces:["wK@e1","bP@d7+"], trays:[[...],[]]}`；`+`
 
 ### Token 说明
 
-- 默认 Token 写在 `assets/js/puzzles-config.js`，会随站点一起发布；等于**所有拿到这个页面的人都能上传/删除题库**。只应把它用于这个公开题库仓库。
+- 默认 Token **不进入 git**：本地在 `assets/js/puzzles-config.js`（已加入 `.gitignore`，且已从 git 索引移除），线上由构建命令 `node scripts/inject-token.js` 从 `PHALANX_TOKEN` 环境变量生成。等于所有拿到部署站点的人都能上传/删除题库；只应把它用于这个公开题库仓库。
 - 连接弹窗里可以粘贴自己的 Fine-grained Token 覆盖默认值；自定义 Token 保存在本机 `localStorage`（`phalanx.github`），只会发往 `api.github.com`。
 - 默认 Token 建议使用 **Fine-grained token**：Repository access 只选 `Melba0/phalanxpuzzle`，Permissions → Contents → Read and write。
 - 连接时会调用仓库元数据接口检查 `permissions.push`；没有写权限的 Token 会被拒绝。
-- 想收回默认写权限：删除 `puzzles-config.js` 里的 token（或整个文件），并去 GitHub 撤销该 Token。
+- 想收回默认写权限：删除本地 `puzzles-config.js` / 托管平台环境变量，并去 GitHub 撤销该 Token。
+
+> 为什么不把 Token 提交进仓库：GitHub 的 **push protection 不接受仓库里的忽略配置**，检测到 PAT 会拦截推送，并且公开仓库里的 PAT 可能被自动吊销。唯一稳妥的做法是让 Token 不进入 git，在部署时注入。`.github/secret_scanning.yml` 只能排除 secret scanning 告警，管不了 push protection，因此已移除。
+
+### 部署（Netlify / Vercel / Cloudflare）
+
+Token 不提交进 git，而是在构建时注入：
+
+1. 在托管平台设置环境变量 `PHALANX_TOKEN`，值为默认 Token。
+2. 构建命令填 `node scripts/inject-token.js`，输出目录填仓库根目录 `.`。
+3. Netlify 已带 `netlify.toml`，Vercel 已带 `vercel.json`，两者只需在后台加环境变量；Cloudflare Pages 在 **Settings → Build configuration** 里填上面两条。
+
+每次 push 的 commit 里没有 Token，push protection 不会拦，也不会被吊销；构建产物会带上默认连接，同学打开就能上传/删除。Token 只存在于托管平台的环境变量和构建产物中。
 
 ---
 
@@ -192,7 +204,7 @@ JSON 形如 `{v, size, turn, pieces:["wK@e1","bP@d7+"], trays:[[...],[]]}`；`+`
 │       ├── pieces.js         SVG 棋子与渐变
 │       ├── board.js          BoardView + TrayView（选段、方向箭头、吃子对比、落子预览）
 │       ├── ui.js             图标、toast、modal、confirm、音效、localStorage
-│       ├── puzzles-config.js 默认 GitHub Token（随站点发布，可删除）
+│       ├── puzzles-config.js 本地默认 Token（gitignored；线上由 Actions 注入）
 │       ├── puzzles.js        GitHub 题库（读取 / 上传 / 删除 / Token）
 │       ├── lessons.js        10 节教程内容
 │       ├── learn.js          教程页
@@ -203,6 +215,9 @@ JSON 形如 `{v, size, turn, pieces:["wK@e1","bP@d7+"], trays:[[...],[]]}`；`+`
 │       ├── rules.js          规则页
 │       ├── home.js           首页与演示循环
 │       └── app.js            路由、初始化、快捷键、音效开关
+├── scripts/inject-token.js    构建时从 PHALANX_TOKEN 生成默认 Token 配置
+├── netlify.toml               Netlify 构建配置
+├── vercel.json                Vercel 构建配置
 ├── .gitignore
 └── README.md
 ```
