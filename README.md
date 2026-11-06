@@ -1,6 +1,6 @@
 # Phalanx · 连兵棋（兵线会战）
 
-一个**纯静态、零依赖、零联网、无 AI** 的连兵棋网页。整段推进、顶头对撞、俘虏打入、入阵升变——打开 `index.html` 就能下。
+一个**纯静态、无后端、无 AI** 的连兵棋网页。整段推进、顶头对撞、俘虏打入、入阵升变——打开 `index.html` 就能下。题库由 GitHub 托管：公开读取，上传/删除需要一次浏览器内的 Token 连接。
 
 > 名称：**Phalanx**（方阵）  
 > 中文：**连兵棋 · 兵线会战**  
@@ -21,7 +21,7 @@ python -m http.server 8000
 # 打开 http://localhost:8000
 ```
 
-没有 `npm install`，没有打包步骤，没有外部字体或 CDN 请求。断网也能完整使用。
+没有 `npm install`，没有打包步骤，没有外部字体或 CDN 请求。除 GitHub 题库同步外，其余功能断网也能完整使用；题库读取会缓存在本机，离线时仍可继续做题。
 
 ---
 
@@ -32,11 +32,11 @@ python -m http.server 8000
 | **教程** | 10 节交互短课：棋盘、线段、后退限制、升变、整段后撤、正交对撞、斜线对撞、吃子结果、打入、胜负。走错会说明原因。 |
 | **对弈** | 本地双人同屏。选段、方向箭头、吃子强弱对比、俘虏打入、悔棋/重做、翻转、记谱读写、局面代码、结果 veil。 |
 | **分析** | **树形棋谱**：导入棋谱/局面代码，在任意节点继续走子分出变例；点击节点回看、设为主线、删除分支、导出整棵树；棋谱树可从对弈页一键带入。 |
-| **练习** | 由「局面 + 唯一解法走法」生成题目，按顺序校验；提示、看答案、重试、下一题；自建题目保存在本机。 |
+| **练习** | 题库托管在 GitHub（`Melba0/phalanxpuzzle`）：由「局面 + 唯一解法走法」生成题目，校验后直接上传；按顺序解题，支持提示、看答案、重试、下一题。 |
 | **编辑器** | 摆任意局面、切换行棋方/棋盘规格、编辑持棋台俘虏段与锁定方向、局面代码、直接开始对弈、生成练习题。 |
 | **规则** | 规则速查：棋盘、棋子、线段、移动、升变、对撞、吃子结果、打入、胜负，含图示与目录。 |
 
-所有页面都由同一套引擎驱动，完全在浏览器内计算。
+所有棋局计算都由同一套引擎在浏览器内完成；只有题库的读取/写入经过 GitHub API。
 
 ---
 
@@ -153,14 +153,25 @@ JSON 形如 `{v, size, turn, pieces:["wK@e1","bP@d7+"], trays:[[...],[]]}`；`+`
 
 分析页没有 AI，只呈现规则与局面事实。
 
-## 练习页：局面 + 唯一解法
+## 练习页：GitHub 题库
 
-- 内置 5 道示例题：一步擒王、入阵升变、斜线对撞、整段后撤、俘虏打入。
-- **生成题目**：填「局面代码」（留空则用 9 路标准开局）+「唯一解法走法」（按顺序、空格分隔、可带手数前缀）+ 题面/提示；点「校验」会逐步执行并规范化，点「保存并开始」加入题库。
+题库仓库：**https://github.com/Melba0/phalanxpuzzle**（公开），数据文件为 `puzzles.json`。站点不再内置示例题；所有题目都来自这个仓库。
+
+- **读取**：未连接 Token 时从 `raw.githubusercontent.com` 读取公开文件；连过 Token 时走 GitHub Contents API。读取成功会缓存到本机，网络失败时显示「离线缓存」。
+- **上传**：在「练习题 → 连接」里填一次细粒度 Token（仅限该仓库、`Contents: Read and write`），之后「生成题目 → 上传到题库」会直接写入 `puzzles.json`。
   - 校验要求：双方各恰好一枚王；解法是一条连续的合法走法序列；不支持括号变例。
-  - 生成器可从编辑器「生成练习题」或分析页「存为练习题」带着当前局面打开。
+  - 空仓库首次上传会自动创建 `puzzles.json` 和 `main` 分支（Contents API 失败时回退到 Git Data API）。
+  - 题目字段：`id / title / code / solution / intro / hint / author / createdAt / side / steps`；`code` 是 `LBQ1.…` 局面代码，`solution` 是按顺序执行的走法数组。
+- **删除**：题目面板右上角的垃圾桶会从 `puzzles.json` 移除该题（需要可写 Token）。
 - 解题时只有走出题目记录的下一步才会推进；走错会提示但不改棋盘。支持**提示**（高亮线段/截取俘虏段并给方向）、**看答案**、**重试**、**下一题**。
-- 自建题目和「已解」状态保存在浏览器本机；示例题始终在。
+- 「已解」状态仍只保存在本机（`phalanx.puzzles.solved`），不会写回 GitHub。
+
+### Token 说明
+
+- Token 只保存在本机浏览器的 `localStorage`（`phalanx.github`），只会发往 `api.github.com`。
+- 建议使用 **Fine-grained token**：Repository access 只选 `Melba0/phalanxpuzzle`，Permissions → Contents → Read and write。
+- 连接时会调用仓库元数据接口检查 `permissions.push`；没有写权限的 Token 会被拒绝。
+- 可随时在「连接」弹窗里断开，或去 GitHub 撤销 Token。
 
 ---
 
@@ -180,6 +191,7 @@ JSON 形如 `{v, size, turn, pieces:["wK@e1","bP@d7+"], trays:[[...],[]]}`；`+`
 │       ├── pieces.js         SVG 棋子与渐变
 │       ├── board.js          BoardView + TrayView（选段、方向箭头、吃子对比、落子预览）
 │       ├── ui.js             图标、toast、modal、confirm、音效、localStorage
+│       ├── puzzles.js        GitHub 题库（读取 / 上传 / 删除 / Token）
 │       ├── lessons.js        10 节教程内容
 │       ├── learn.js          教程页
 │       ├── play.js           对弈页（本地双人、记谱、分析标签）
@@ -202,11 +214,12 @@ JSON 形如 `{v, size, turn, pieces:["wK@e1","bP@d7+"], trays:[[...],[]]}`；`+`
 | 键 | 内容 |
 | --- | --- |
 | `phalanx.learn` | 教程完成进度 |
-| `phalanx.puzzles` | 自建练习题 |
 | `phalanx.puzzles.solved` | 已解出的题目 id |
+| `phalanx.github` | GitHub Token / 显示名 / 权限（仅本机） |
+| `phalanx.puzzleCache` | 最近一次读取的题库缓存（离线用） |
 | `phalanx.sound` | 音效开关 |
 
-清空浏览器站点数据即可重置；不会影响示例题和规则。
+题库本身不在 `localStorage` 里；清空浏览器数据只会清除进度与缓存，不会影响 GitHub 上的题目。
 
 ---
 
@@ -214,7 +227,8 @@ JSON 形如 `{v, size, turn, pieces:["wK@e1","bP@d7+"], trays:[[...],[]]}`；`+`
 
 - 原生 JavaScript（ES5 语法风格，传统 `<script>`），无模块、无构建、无第三方运行时依赖；棋盘/棋子全部为内联 SVG 与 CSS。
 - 规则引擎在开发期与一份 Python 参考实现做过逐步交叉校验：5,160 个随机步的往返记谱、120 个随机局面的一致性和 1,440 次模糊测试全部通过；参考实现已按约定从项目中移除。
-- 所有规则与交互均在浏览器本地计算：**没有联网、没有随机、没有 AI**。
+- 题库写入使用 GitHub Contents API；空仓库回退到 Git Data API 创建首个提交。上传/读取/删除路径用本地 mock 做过完整流程测试；Token 权限与 401 响应在真实 GitHub API 上验证。
+- 所有棋局规则与交互在浏览器本地计算：**没有随机、没有 AI、没有自建后端**；只有题库同步会访问 GitHub。
 
 ---
 

@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    UI 基础工具：图标 / 通知 / 弹窗 / 音效 / 存储
    ========================================================================== */
 (function (LBQ) {
@@ -36,7 +36,11 @@
     arrowLeft: '<path d="M20 12H5"/><path d="m10.5 6.5-6 5.5 6 5.5"/>',
     info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.6v.2"/>',
     crown: '<path d="M4 18h16l-1.5-9-4 4L12 5 9.5 13l-4-4L4 18Z"/><path d="M4 20.5h16"/>',
-    pin: '<path d="M12 21s6.5-6 6.5-11a6.5 6.5 0 0 0-13 0C5.5 15 12 21 12 21Z"/><circle cx="12" cy="10" r="2.3"/>'
+    pin: '<path d="M12 21s6.5-6 6.5-11a6.5 6.5 0 0 0-13 0C5.5 15 12 21 12 21Z"/><circle cx="12" cy="10" r="2.3"/>',
+    github: '<path fill="currentColor" stroke="none" d="M12 .8a11.2 11.2 0 0 0-3.54 21.83c.56.1.77-.24.77-.54v-2.1c-3.12.68-3.78-1.32-3.78-1.32-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 .1.1.7 2.55 1.29.2-.92.39-1.5.71-1.84-2.49-.28-5.1-1.25-5.1-5.55 0-1.23.44-2.23 1.16-3.02-.12-.28-.5-1.43.11-2.98 0 0 .94-.3 3.08 1.15a10.7 10.7 0 0 1 5.6 0c2.14-1.45 3.08-1.15 3.08-1.15.61 1.55.23 2.7.11 2.98.72.79 1.16 1.79 1.16 3.02 0 4.31-2.62 5.27-5.11 5.55.4.35.76 1.03.76 2.08v3.09c0 .3.2.65.78.54A11.2 11.2 0 0 0 12 .8Z"/>',
+    external: '<path d="M14 4h6v6"/><path d="M20 4 11 13"/><path d="M19 14.5V19a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V6.5A1.5 1.5 0 0 1 5 5h4.5"/>',
+    database: '<ellipse cx="12" cy="5.5" rx="7.5" ry="3"/><path d="M4.5 5.5v13c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3v-13"/><path d="M4.5 12c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3"/>',
+    lock: '<rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>'
   };
 
   function icon(name, cls) {
@@ -241,6 +245,25 @@
     } catch (e) { return false; }
   }
 
+  function revealAll(root) {
+    var nodes = (root || document).querySelectorAll('[data-reveal]');
+    if (!nodes.length) return;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || !('IntersectionObserver' in window)) {
+      Array.prototype.forEach.call(nodes, function (n) { n.classList.add('in'); });
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) {
+          en.target.classList.add('in');
+          io.unobserve(en.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+    Array.prototype.forEach.call(nodes, function (n) { io.observe(n); });
+  }
+
   LBQ.icon = icon;
   LBQ.el = el;
   LBQ.escapeHTML = escapeHTML;
@@ -251,5 +274,7 @@
   LBQ.sound = sound;
   LBQ.store = store;
   LBQ.copyText = copyText;
+  LBQ.revealAll = revealAll;
 })(window.LBQ = window.LBQ || {});
+
 

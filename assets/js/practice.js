@@ -1,5 +1,5 @@
-﻿/* ==========================================================================
-   练习题：由「局面 + 唯一解法棋谱」生成，按顺序校验
+/* ==========================================================================
+   练习题：题库由 GitHub 托管（Melba0/phalanxpuzzle），解题按唯一解法校验
    ========================================================================== */
 (function (LBQ) {
   'use strict';
@@ -9,69 +9,13 @@
   var refs = {};
   var state = {
     puzzle: null, game: null, startGame: null, step: 0, attempts: 0,
-    solved: false, revealed: false, traySel: null, flip: false
+    solved: false, revealed: false, traySel: null, flip: false,
+    puzzles: [], loading: false, error: null, cached: false, at: 0,
+    invalid: 0, fetchedAt: 0, tokenIssue: false, uploading: false
   };
   var solvedStore = LBQ.store.get('puzzles.solved', {}) || {};
-  var builtins = [];
-
-  /* ---------------------------------------------------------------- 示例题 */
-  var BUILTIN_DEFS = [
-    {
-      id: 'b-king',
-      title: '一步擒王',
-      intro: '白方先行。黑王就在敌段里——一步结束对局。',
-      hint: '用 e3–e4 这条竖线向正前方冲撞。',
-      setup: { size: 9, pieces: ['wK@a1', 'wR@e3,e4', 'bK@e5', 'bP@f5'] },
-      solution: ['e3w2w']
-    },
-    {
-      id: 'b-promo',
-      title: '入阵升变',
-      intro: '白方先行。把车送进黑方阵营，获得升变。',
-      hint: 'e6 的车向上走一格。',
-      setup: { size: 9, pieces: ['wK@e1', 'wR@e6', 'bK@a9'] },
-      solution: ['e6w1w']
-    },
-    {
-      id: 'b-diag',
-      title: '斜线对撞',
-      intro: '白方先行。沿斜线吃掉黑段：白方 2 象，黑方 1 象。',
-      hint: '选中 c2–e4 的斜线，向右上冲撞。',
-      setup: { size: 9, pieces: ['wK@a1', 'wB@c2,d3', 'wP@e4', 'bK@a9', 'bB@f5', 'bP@g6'] },
-      solution: ['c2e3e']
-    },
-    {
-      id: 'b-retreat',
-      title: '整段后撤',
-      intro: '白方先行。这条线段两枚棋子都已升变，试把它整段后退一格。',
-      hint: '选中 e3–e4，向下走。',
-      setup: { size: 9, pieces: ['wK@a1', 'wR@e4+', 'wP@e3+', 'bK@a9'] },
-      solution: ['e3w2s']
-    },
-    {
-      id: 'b-drop',
-      title: '俘虏打入',
-      intro: '白方先行。把持棋台上的整段 PR 打入 c4（方向向上）。',
-      hint: '在白方持棋台点 P，再点 R，然后落到 c4。',
-      setup: { size: 9, pieces: ['wK@a1', 'bK@a9'], trays: { w: ['PR:n'] } },
-      solution: ['c4w2*1.1']
-    }
-  ];
-
-  function buildBuiltins() {
-    if (builtins.length) return builtins;
-    BUILTIN_DEFS.forEach(function (d) {
-      var built = LBQ.buildGame(d.setup);
-      var game = built.game;
-      builtins.push({
-        id: d.id, title: d.title, intro: d.intro, hint: d.hint,
-        code: LBQ.encodePosition(game),
-        solution: d.solution.slice(),
-        side: game.current, steps: d.solution.length, builtin: true
-      });
-    });
-    return builtins;
-  }
+  var pendingPuzzle = null;
+  var feedbackText = '', feedbackType = '';
 
   /* ---------------------------------------------------------------- 结构 */
   function init() {
@@ -83,20 +27,31 @@
       '    <div>' +
       '      <div class="eyebrow">练习题 · 局面 + 唯一解法</div>' +
       '      <h1>练 习</h1>' +
-      '      <p class="page-desc">每一题由「一个局面」和「一段唯一走法」生成。按顺序走出解法即可过关；题目保存在本机浏览器。</p>' +
+      '      <p class="page-desc">题库由 GitHub 托管：每一题是一个局面加一段唯一走法，按顺序走完即过关。生成的题目会直接写入 Melba0/phalanxpuzzle。</p>' +
       '    </div>' +
       '    <div class="page-head-side">' +
       '      <button class="btn btn-quiet" data-act="flip">' + ICON('flip') + '<span>翻转</span></button>' +
       '      <button class="btn btn-primary" data-act="generate">' + ICON('plus') + '<span>生成题目</span></button>' +
       '    </div>' +
       '  </div>' +
+      '  <div class="db-bar" id="db-bar">' +
+      '    <div class="db-left">' +
+      '      <span class="db-ico">' + ICON('github') + '</span>' +
+      '      <div class="db-meta"><b>GitHub 题库 <i class="db-dot" id="db-dot"></i></b><span id="db-info">正在读取…</span></div>' +
+      '    </div>' +
+      '    <div class="db-right">' +
+      '      <a class="db-repo" href="' + LBQ.puzzles.REPO_URL + '" target="_blank" rel="noopener">' + ICON('external') + 'Melba0/phalanxpuzzle</a>' +
+      '      <button class="icon-btn db-refresh" data-act="db-refresh" title="刷新题库">' + ICON('refresh') + '</button>' +
+      '      <button class="btn btn-sm btn-quiet" data-act="db-connect" id="db-connect">连接</button>' +
+      '    </div>' +
+      '  </div>' +
       '  <div class="practice-grid">' +
       '    <aside class="puzzle-list panel">' +
-      '      <div class="puzzle-list-head"><div class="panel-title">题库</div><span id="puzzle-count"></span></div>' +
+      '      <div class="puzzle-list-head"><div class="panel-title">题库</div><span id="puzzle-count">—</span></div>' +
       '      <div class="puzzle-items" id="puzzle-items"></div>' +
       '      <div class="puzzle-list-foot">' +
       '        <button class="btn btn-sm btn-quiet" data-act="generate">' + ICON('plus') + '生成题目</button>' +
-      '        <span class="hint">自建题目保存在本机浏览器</span>' +
+      '        <a class="db-link" href="' + LBQ.puzzles.REPO_URL + '" target="_blank" rel="noopener">在 GitHub 查看题库 ' + ICON('external') + '</a>' +
       '      </div>' +
       '    </aside>' +
       '    <div class="puzzle-board-col">' +
@@ -111,7 +66,7 @@
       '        <div class="tray-host" data-tray="0"></div>' +
       '        <span class="turn-pip" data-pip="0">行棋</span>' +
       '      </div>' +
-      '      <div class="play-hint" id="practice-hint">从左侧选一道题开始。</div>' +
+      '      <div class="play-hint" id="practice-hint">正在读取 GitHub 题库…</div>' +
       '    </div>' +
       '    <aside class="puzzle-panel panel" id="puzzle-panel"></aside>' +
       '  </div>' +
@@ -124,12 +79,16 @@
       trayW: el.querySelector('[data-tray="0"]'),
       trayB: el.querySelector('[data-tray="1"]'),
       panel: el.querySelector('#puzzle-panel'),
-      hint: el.querySelector('#practice-hint')
+      hint: el.querySelector('#practice-hint'),
+      dbInfo: el.querySelector('#db-info'),
+      dbDot: el.querySelector('#db-dot'),
+      dbConnect: el.querySelector('#db-connect'),
+      dbRefresh: el.querySelector('.db-refresh')
     };
 
     board = new LBQ.BoardView(refs.boardHost, {
       onAction: onAction,
-      onProbe: function (info) { setFeedback(info.message, 'warn'); },
+      onProbe: function (info) { setFeedback(LBQ.escapeHTML(info.message), 'warn'); },
       onForeign: function () { setFeedback('这是对方的棋子。', 'warn'); },
       onDropMiss: function () { setFeedback('这里不是排头格：移到能放下整段的位置，出现紫色预览后再点击。', 'warn'); },
       onSelect: function () { if (state.traySel) { state.traySel = null; syncTrays(); } },
@@ -148,17 +107,14 @@
         else if (act === 'hint') showHint();
         else if (act === 'reveal') reveal();
         else if (act === 'next') nextPuzzle();
-        return;
-      }
-      var del = e.target.closest('[data-del-puzzle]');
-      if (del) {
-        e.stopPropagation();
-        deletePuzzle(del.dataset.delPuzzle);
+        else if (act === 'db-refresh') refreshPuzzles({ show: true });
+        else if (act === 'db-connect') openConnect({ onDone: function () { renderDbBar(); refreshPuzzles(); } });
+        else if (act === 'puzzle-delete') deletePuzzle();
         return;
       }
       var card = e.target.closest('[data-puzzle]');
       if (card) {
-        var p = allPuzzles().find(function (x) { return x.id === card.dataset.puzzle; });
+        var p = state.puzzles.find(function (x) { return x.id === card.dataset.puzzle; });
         if (p) loadPuzzle(p);
         return;
       }
@@ -168,77 +124,152 @@
       board.clearSelection();
     });
 
-    buildBuiltins();
-    renderList();
-    var all = allPuzzles();
-    if (all.length) loadPuzzle(all[0]);
-    else renderPanel();
-  }
-
-  /* ---------------------------------------------------------------- 题库 */
-  function loadUser() {
-    var v = LBQ.store.get('puzzles', []);
-    return Array.isArray(v) ? v : [];
-  }
-  function saveUser(list) { LBQ.store.set('puzzles', list); }
-  function allPuzzles() { return loadUser().concat(buildBuiltins()); }
-
-  function renderList() {
-    var user = loadUser();
-    var built = buildBuiltins();
-    var html = '';
-    html += '<div class="puzzle-section"><div class="ps-head">我的题目 <span>' + user.length + '</span></div>';
-    if (!user.length) {
-      html += '<div class="ps-empty">还没有自建题目。<br>点「生成题目」，用局面 + 唯一走法生成一道。</div>';
+    // 先用缓存渲染，再静默拉取 GitHub
+    var cache = LBQ.puzzles.cacheGet();
+    if (cache && cache.puzzles && cache.puzzles.length) {
+      state.puzzles = cache.puzzles.map(LBQ.puzzles.normalize).filter(Boolean);
+      state.at = cache.at || 0;
+      state.cached = true;
+      if (state.puzzles.length) loadPuzzle(state.puzzles[0]); else emptyBoard();
+      renderList();
+      renderDbBar();
     } else {
-      user.forEach(function (p) { html += puzzleCard(p, false); });
+      emptyBoard();
+      renderList();
+      renderDbBar();
     }
-    html += '</div>';
-    html += '<div class="puzzle-section"><div class="ps-head">示例题 <span>' + built.length + '</span></div>';
-    built.forEach(function (p) { html += puzzleCard(p, true); });
-    html += '</div>';
-    refs.items.innerHTML = html;
-    refs.count.textContent = (user.length + built.length) + ' 题';
+    refreshPuzzles();
   }
 
-  function puzzleCard(p, isBuiltin) {
-    var solved = !!solvedStore[p.id];
-    var active = state.puzzle && state.puzzle.id === p.id;
-    return '<div class="puzzle-card' + (active ? ' active' : '') + (solved ? ' is-solved' : '') +
-      '" data-puzzle="' + p.id + '" role="button" tabindex="0">' +
-      '<div class="pc-top"><b>' + LBQ.escapeHTML(p.title) + '</b>' +
-      (isBuiltin ? '<em class="pc-tag">示例</em>' : '<button class="pc-del" data-del-puzzle="' + p.id + '" title="删除">' + ICON('close') + '</button>') +
-      '</div>' +
-      '<div class="pc-meta"><span>' + (p.side === 1 ? '黑先' : '白先') + '</span><span>' + p.steps + ' 步</span>' +
-      (solved ? '<span class="pc-solved">' + ICON('check') + '已解</span>' : '') + '</div>' +
-      '</div>';
-  }
-
-  function deletePuzzle(id) {
-    LBQ.confirm({
-      title: '删除这道题？',
-      body: '<p class="hint">只删除本机保存的题目，示例题不受影响。</p>',
-      okText: '删除',
-      danger: true
-    }).then(function (ok) {
-      if (!ok) return;
-      var list = loadUser().filter(function (p) { return p.id !== id; });
-      saveUser(list);
-      delete solvedStore[id];
-      LBQ.store.set('puzzles.solved', solvedStore);
-      if (state.puzzle && state.puzzle.id === id) {
-        state.puzzle = null;
-        var all = allPuzzles();
-        if (all.length) loadPuzzle(all[0]); else { board.setGame(new LBQ.Game(9).setupStandard(), { reset: true }); board.setMode('none'); renderPanel(); }
+  /* ---------------------------------------------------------------- 题库同步 */
+  function refreshPuzzles(opts) {
+    opts = opts || {};
+    if (state.loading) return Promise.resolve();
+    state.loading = true;
+    state.error = null;
+    renderDbBar();
+    if (!state.puzzles.length) renderList();
+    if (!state.puzzle) { renderPanel(); setHint('正在读取 GitHub 题库…'); }
+    return LBQ.puzzles.load().then(function (r) {
+      state.loading = false;
+      state.fetchedAt = Date.now();
+      state.cached = !!r.cached;
+      state.error = r.error || null;
+      state.invalid = r.invalid || 0;
+      state.at = r.at || 0;
+      state.tokenIssue = !!r.tokenIssue;
+      state.puzzles = r.puzzles || [];
+      renderDbBar();
+      if (state.puzzle) {
+        var cur = state.puzzles.find(function (p) { return p.id === state.puzzle.id; });
+        if (cur) state.puzzle = cur;
+        else if (state.puzzles.length) loadPuzzle(state.puzzles[0]);
+        else emptyBoard();
+      } else if (state.puzzles.length) {
+        loadPuzzle(state.puzzles[0]);
+      } else {
+        renderPanel();
+      }
+      if (!state.puzzle) {
+        setHint(state.error ? '题库读取失败 · 点刷新重试' : '题库为空 · 点「生成题目」上传第一道题');
       }
       renderList();
-      LBQ.toast('题目已删除', 'ok');
+      renderDbBar();
+      if (r.error) LBQ.toast('题库读取：' + r.error, 'warn', 4000);
+      if (r.invalid) LBQ.toast('跳过 ' + r.invalid + ' 道无法执行的题目', 'warn', 3600);
+    }, function (err) {
+      state.loading = false;
+      state.fetchedAt = Date.now();
+      state.error = err.message || String(err);
+      renderDbBar();
+      renderList();
+      if (!state.puzzle) {
+        renderPanel();
+        setHint('题库读取失败 · 点刷新重试');
+      }
+      LBQ.toast('题库读取失败：' + state.error, 'warn', 4400);
     });
   }
 
-  /* ---------------------------------------------------------------- 出题 / 解题 */
+  function applyPuzzles(list) {
+    state.puzzles = list || [];
+    if (state.puzzle) {
+      var cur = state.puzzles.find(function (p) { return p.id === state.puzzle.id; });
+      state.puzzle = cur || null;
+    }
+    renderList();
+    renderDbBar();
+  }
+
+  function renderDbBar() {
+    if (!refs.dbInfo) return;
+    var a = LBQ.puzzles.auth();
+    var connected = !!a;
+    var n = state.puzzles.length;
+    var cls = 'db-dot';
+    var text;
+    if (state.loading) {
+      cls += ' is-loading'; text = '正在读取题库…';
+    } else if (state.error) {
+      cls += ' is-error'; text = (state.cached ? '离线缓存' : '读取失败') + ' · ' + state.error;
+    } else if (connected && a.push === false) {
+      cls += ' is-read'; text = '只读连接 · ' + n + ' 题';
+    } else if (connected) {
+      cls += ' is-live'; text = '已连接 · ' + n + ' 题' + (state.at ? ' · ' + LBQ.puzzles.ago(state.at) : '');
+    } else {
+      cls += ' is-read'; text = '公开读取 · ' + n + ' 题 · 连接后可上传';
+    }
+    if (!state.loading && state.invalid) text += ' · 跳过 ' + state.invalid;
+    refs.dbInfo.textContent = text;
+    refs.dbInfo.title = text;
+    refs.dbDot.className = cls;
+    refs.dbConnect.textContent = connected ? '设置' : '连接';
+    refs.dbRefresh.disabled = state.loading;
+    refs.dbRefresh.classList.toggle('is-spinning', state.loading);
+  }
+
+  /* ---------------------------------------------------------------- 列表 */
+  function renderList() {
+    if (!refs.items) return;
+    var n = state.puzzles.length;
+    refs.count.textContent = state.loading && !n ? '…' : (n + ' 题');
+    if (!n) {
+      if (state.loading) {
+        refs.items.innerHTML = '<div class="puzzle-skel"><i></i><i></i><i></i></div>';
+        return;
+      }
+      if (state.error) {
+        refs.items.innerHTML = '<div class="db-empty">' +
+          '<span class="dbe-icon">' + ICON('info') + '</span>' +
+          '<b>题库暂时不可用</b><p>' + LBQ.escapeHTML(state.error) + '</p>' +
+          '<button class="btn btn-sm btn-quiet" data-act="db-refresh">' + ICON('refresh') + '重试</button>' +
+          '<a class="db-link" href="' + LBQ.puzzles.REPO_URL + '" target="_blank" rel="noopener">去 GitHub 查看</a>' +
+          '</div>';
+        return;
+      }
+      refs.items.innerHTML = '<div class="db-empty is-compact">' +
+        '<b>题库为空</b><p>还没有题目，点下方「生成题目」上传第一道。</p>' +
+        '</div>';
+      return;
+    }
+    refs.items.innerHTML = '<div class="puzzle-section"><div class="ps-head">题库 <span>' + n + '</span></div>' +
+      state.puzzles.map(puzzleCard).join('') + '</div>';
+  }
+
+  function puzzleCard(p) {
+    var solved = !!solvedStore[p.id];
+    var active = state.puzzle && state.puzzle.id === p.id;
+    return '<button type="button" class="puzzle-card' + (active ? ' active' : '') + (solved ? ' is-solved' : '') +
+      '" data-puzzle="' + LBQ.escapeHTML(p.id) + '">' +
+      '<span class="pc-top"><b>' + LBQ.escapeHTML(p.title) + '</b>' +
+      (p.author ? '<em class="pc-author">' + LBQ.escapeHTML(p.author) + '</em>' : '') + '</span>' +
+      '<span class="pc-meta"><span>' + (p.side === 1 ? '黑先' : '白先') + '</span><span>' + p.steps + ' 步</span>' +
+      (solved ? '<span class="pc-solved">' + ICON('check') + '已解</span>' : '') + '</span>' +
+      '</button>';
+  }
+
+  /* ---------------------------------------------------------------- 解题 */
   function loadPuzzle(p) {
-    buildBuiltins();
     var dec = LBQ.decodePosition(p.code);
     if (dec.error) { LBQ.toast('题目局面损坏：' + dec.error, 'warn'); return; }
     state.puzzle = p;
@@ -254,10 +285,34 @@
     board.setFlip(false);
     board.setGame(state.game, { reset: true });
     board.setMode(state.solved ? 'none' : 'select');
+    board.setFocus([]);
     syncTrays();
     setHint(state.solved ? '已解 · 点「重试」可以重走一遍。' : '按题目的唯一解法走棋。');
     renderPanel();
     renderList();
+    renderDbBar();
+  }
+
+  function emptyBoard() {
+    state.puzzle = null;
+    state.startGame = null;
+    state.game = new LBQ.Game(9).setupStandard();
+    state.step = 0;
+    state.attempts = 0;
+    state.solved = false;
+    state.revealed = false;
+    state.traySel = null;
+    feedbackText = ''; feedbackType = '';
+    board.setFlip(false);
+    board.setGame(state.game, { reset: true });
+    board.setMode('none');
+    board.setFocus([]);
+    trayW.set(state.game, 0, false);
+    trayB.set(state.game, 1, false);
+    board.setTraySelection(null);
+    updateBars();
+    setHint(state.loading ? '正在读取 GitHub 题库…' : '题库为空 · 点「生成题目」上传第一道题');
+    renderPanel();
   }
 
   function expectedAction() {
@@ -284,10 +339,7 @@
     state.game = next;
     state.step++;
     state.traySel = null;
-    board.setGame(next, {
-      animate: true,
-      lastCells: pathOfAction(exp)
-    });
+    board.setGame(next, { animate: true, lastCells: pathOfAction(exp) });
     board.clearSelection(true);
     syncTrays();
     if (exp.type === 'capture' || exp.type === 'drop') LBQ.sound.play(exp.type === 'drop' ? 'drop' : 'capture');
@@ -369,14 +421,11 @@
     var exp = expectedAction();
     if (!exp || !exp.ok) return;
     if (exp.type === 'drop') {
-      var seg = state.game.tray[state.game.current][exp.ti];
       board.setFocus([]);
       setFeedback('提示：从第 ' + (exp.ti + 1) + ' 段俘虏中截取第 ' + (exp.start + 1) + ' 子起的 ' + exp.len +
         ' 子，方向' + LBQ.DIR_LABEL[exp.dir] + '。', 'hint');
-      if (seg) {
-        state.traySel = { ti: exp.ti, start: exp.start, len: exp.len };
-        syncTrays();
-      }
+      state.traySel = { ti: exp.ti, start: exp.start, len: exp.len };
+      syncTrays();
     } else {
       board.setFocus(exp.cells);
       setFeedback('提示：选中高亮的 ' + exp.cells.length + ' 子线段，向' + LBQ.DIR_LABEL[exp.dir] +
@@ -387,9 +436,9 @@
 
   function reveal() {
     if (!state.puzzle || state.solved) return;
-    feedbackText = ''; feedbackType = '';
     state.revealed = true;
     state.solved = false;
+    feedbackText = ''; feedbackType = '';
     board.setMode('none');
     board.setFocus([]);
     renderPanel();
@@ -397,20 +446,51 @@
   }
 
   function nextPuzzle() {
-    var all = allPuzzles();
-    if (!all.length) return;
-    var idx = state.puzzle ? all.findIndex(function (p) { return p.id === state.puzzle.id; }) : -1;
-    loadPuzzle(all[(idx + 1) % all.length]);
+    if (!state.puzzles.length) { LBQ.toast('题库里还没有题目', 'warn'); return; }
+    var idx = state.puzzle ? state.puzzles.findIndex(function (p) { return p.id === state.puzzle.id; }) : -1;
+    loadPuzzle(state.puzzles[(idx + 1) % state.puzzles.length]);
+  }
+
+  function deletePuzzle() {
+    if (!state.puzzle) return;
+    if (!LBQ.puzzles.hasToken()) {
+      LBQ.toast('连接 GitHub 题库后才能删除', 'warn');
+      openConnect({ onDone: deletePuzzle });
+      return;
+    }
+    var p = state.puzzle;
+    LBQ.confirm({
+      title: '从题库删除这道题？',
+      body: '<p class="hint">会从 GitHub 的 puzzles.json 中移除《' + LBQ.escapeHTML(p.title) + '》，所有访客都将看不到它。</p>',
+      okText: '删除',
+      danger: true
+    }).then(function (ok) {
+      if (!ok) return;
+      LBQ.toast('正在从题库删除…');
+      LBQ.puzzles.remove(p.id).then(function (res) {
+        applyPuzzles(res.puzzles);
+        if (state.puzzles.length) loadPuzzle(state.puzzles[0]);
+        else emptyBoard();
+        if (res.noop) LBQ.toast('这道题已经不在题库里了', '');
+        else LBQ.toast('已从 GitHub 题库删除', 'ok');
+      }).catch(function (err) {
+        LBQ.toast('删除失败：' + err.message, 'warn', 4400);
+      });
+    });
   }
 
   /* ---------------------------------------------------------------- 面板 */
   function renderPanel() {
     if (!state.puzzle) {
+      var loading = state.loading;
+      var err = state.error;
       refs.panel.innerHTML = '<div class="puzzle-empty">' +
-        '<div class="pe-icon">' + ICON('target') + '</div>' +
-        '<h2>还没有题目</h2>' +
-        '<p>用「生成题目」把任意局面和一段唯一走法变成练习题。也可以直接用示例题。</p>' +
-        '<button class="btn btn-primary" data-act="generate">' + ICON('plus') + '生成第一道题</button>' +
+        '<div class="pe-icon">' + ICON(loading ? 'clock' : (err ? 'info' : 'target')) + '</div>' +
+        '<h2>' + (loading ? '正在读取题库' : (err ? '题库暂时不可用' : '题库还是空的')) + '</h2>' +
+        '<p>' + (loading ? '正在从 GitHub 同步题目…' : (err ? LBQ.escapeHTML(err) : '题库由 GitHub 托管。生成第一道题并上传，所有访客都能看到。')) + '</p>' +
+        (!loading ? '<button class="btn btn-primary" data-act="generate">' + ICON('plus') + '生成题目</button>' : '') +
+        (!loading && !err && !LBQ.puzzles.hasToken() ? '<button class="btn btn-quiet" data-act="db-connect">' + ICON('lock') + '连接题库</button>' : '') +
+        (err ? '<button class="btn btn-quiet" data-act="db-refresh">' + ICON('refresh') + '重试</button>' : '') +
         '</div>';
       return;
     }
@@ -424,7 +504,10 @@
     var solvedNow = state.solved;
     var html = '' +
       '<div class="puzzle-head">' +
-      '  <div class="puzzle-kind">' + (p.builtin ? '示例题' : '我的题目') + '</div>' +
+      '  <div class="puzzle-head-row">' +
+      '    <span class="puzzle-kind">GitHub 题库' + (p.author ? ' · ' + LBQ.escapeHTML(p.author) : '') + '</span>' +
+      '    <button class="puzzle-del" data-act="puzzle-delete" title="从 GitHub 题库删除">' + ICON('trash') + '</button>' +
+      '  </div>' +
       '  <h2>' + LBQ.escapeHTML(p.title) + '</h2>' +
       '  <p>' + LBQ.escapeHTML(p.intro || '按题目的唯一解法走棋。') + '</p>' +
       '</div>' +
@@ -448,8 +531,7 @@
       '<button class="btn btn-sm btn-quiet" data-act="retry">' + ICON('refresh') + '重试</button>' +
       '<button class="btn btn-sm btn-quiet" data-act="reveal">' + ICON('key') + '看答案</button>' +
       '<button class="btn btn-sm btn-primary" data-act="next">下一题' + ICON('arrowRight') + '</button>' +
-      '</div>' +
-      (p.hint && !solvedNow ? '<div class="puzzle-hint" hidden>' + LBQ.escapeHTML(p.hint) + '</div>' : '');
+      '</div>';
     refs.panel.innerHTML = html;
     var fb = refs.panel.querySelector('#puzzle-feedback');
     if (feedbackText) {
@@ -460,7 +542,6 @@
     }
   }
 
-  var feedbackText = '', feedbackType = '';
   function setFeedback(html, type) {
     feedbackText = html || '';
     feedbackType = type || '';
@@ -482,8 +563,9 @@
     var game = state.game;
     if (!game) return;
     var ended = game.winner !== null || game.draw;
-    trayW.set(game, 0, !ended && !state.solved && game.current === 0);
-    trayB.set(game, 1, !ended && !state.solved && game.current === 1);
+    var playable = !!state.puzzle && !state.solved && !ended;
+    trayW.set(game, 0, playable && game.current === 0);
+    trayB.set(game, 1, playable && game.current === 1);
     if (state.traySel) {
       board.setTraySelection({ player: game.current, ti: state.traySel.ti, start: state.traySel.start, len: state.traySel.len });
       trayW.setSelection(game.current === 0 ? state.traySel : null);
@@ -498,7 +580,7 @@
 
   function onTrayPick(ti, k, player) {
     var game = state.game;
-    if (!game || state.solved || game.winner !== null || game.draw || game.current !== player) return;
+    if (!game || !state.puzzle || state.solved || game.winner !== null || game.draw || game.current !== player) return;
     board.clearSelection(true);
     if (state.traySel && state.traySel.ti === ti && k >= state.traySel.start) {
       state.traySel = { ti: ti, start: state.traySel.start, len: k - state.traySel.start + 1 };
@@ -527,7 +609,7 @@
       bar.querySelector('[data-sub="' + side + '"]').innerHTML =
         '场上 <b>' + onBoard + '</b> · 台 <b>' + tray.pieces + '</b>' +
         (mat.promo ? ' · 升变 <b class="gold">' + mat.promo + '</b>' : '');
-      var active = state.puzzle && !state.solved && game.winner === null && !game.draw && game.current === side;
+      var active = !!state.puzzle && !state.solved && game.winner === null && !game.draw && game.current === side;
       bar.classList.toggle('is-turn', !!active);
       bar.querySelector('[data-pip="' + side + '"]').hidden = !active;
     });
@@ -536,12 +618,11 @@
   /* ---------------------------------------------------------------- 生成器 */
   function openGenerator(opts) {
     opts = opts || {};
-    buildBuiltins();
-    var isNew = !opts.code;
-    var defaultTitle = opts.title || ('自建题目 ' + (loadUser().length + 1));
+    pendingPuzzle = null;
+    var defaultTitle = opts.title || ('自建题目 ' + (state.puzzles.length + 1));
     var modal = LBQ.openModal({
       title: '生成练习题',
-      subtitle: '输入一个局面（局面代码，留空则为 9 路标准开局）和它的唯一解法走法。保存后会加入「我的题目」。',
+      subtitle: '输入一个局面（局面代码，留空则为 9 路标准开局）和它的唯一解法走法。上传后会直接写入 GitHub 题库。',
       width: 'min(700px, 100%)',
       body: '<div class="gen-form">' +
         '<div class="field"><label>题目名称</label><input class="input" id="gen-title" value="' + LBQ.escapeHTML(defaultTitle) + '" maxlength="40"></div>' +
@@ -559,36 +640,11 @@
         { label: '取消', cls: 'btn-quiet' },
         {
           label: '校验', cls: 'btn-quiet', close: false,
-          onClick: function () {
-            var r = validateForm();
-            showGenMsg(r);
-          }
+          onClick: function () { showGenMsg(validateForm()); }
         },
         {
-          label: '保存并开始', cls: 'btn-primary', icon: 'check', close: false,
-          onClick: function (api) {
-            var r = validateForm();
-            if (r.error) { showGenMsg(r); return; }
-            var puzzle = {
-              id: 'u' + Date.now() + '-' + Math.floor(Math.random() * 999),
-              title: r.title,
-              code: r.code,
-              solution: r.canonical,
-              intro: r.intro,
-              hint: r.hint,
-              side: r.side,
-              steps: r.canonical.length,
-              createdAt: Date.now(),
-              builtin: false
-            };
-            var list = loadUser();
-            list.unshift(puzzle);
-            saveUser(list);
-            api.close();
-            if (location.hash !== '#/practice') location.hash = '#/practice';
-            loadPuzzle(puzzle);
-            LBQ.toast('题目已加入题库', 'ok');
-          }
+          label: '上传到题库', cls: 'btn-primary', icon: 'upload', close: false,
+          onClick: function (api) { savePuzzle(api); }
         }
       ]
     });
@@ -638,6 +694,7 @@
         info: '共 ' + canonical.length + ' 步 · ' + (start.current === 0 ? '白方' : '黑方') + '先行 · ' + canonical.join(' ')
       };
     }
+
     function showGenMsg(r) {
       var box = modal.root.querySelector('#gen-msg');
       if (r.error) {
@@ -648,16 +705,162 @@
         box.textContent = '校验通过：' + r.info;
       }
     }
+
+    function savePuzzle(api) {
+      var r = validateForm();
+      if (r.error) { showGenMsg(r); return; }
+      pendingPuzzle = {
+        id: 'u' + Date.now() + '-' + Math.floor(Math.random() * 999),
+        title: r.title,
+        code: r.code,
+        solution: r.canonical,
+        intro: r.intro,
+        hint: r.hint,
+        author: LBQ.puzzles.name() || LBQ.puzzles.login(),
+        createdAt: Date.now(),
+        side: r.side,
+        steps: r.steps,
+        builtin: false
+      };
+      if (!LBQ.puzzles.hasToken()) {
+        showGenMsg({ error: '还没有连接 GitHub 题库。连接成功后会自动继续上传。' });
+        openConnect({ onDone: function () { uploadPuzzle(api); } });
+        return;
+      }
+      uploadPuzzle(api);
+    }
+
+    function uploadPuzzle(api) {
+      if (!pendingPuzzle || state.uploading) return;
+      var btn = modal.foot.querySelector('.btn-primary');
+      var old = btn.innerHTML;
+      state.uploading = true;
+      btn.disabled = true;
+      btn.textContent = '上传中…';
+      LBQ.puzzles.upload(pendingPuzzle).then(function (res) {
+        state.uploading = false;
+        btn.disabled = false;
+        btn.innerHTML = old;
+        api.close();
+        var fresh = (res.puzzles || []).find(function (p) { return p.id === pendingPuzzle.id; }) || pendingPuzzle;
+        pendingPuzzle = null;
+        applyPuzzles(res.puzzles);
+        loadPuzzle(fresh);
+        if (location.hash !== '#/practice') location.hash = '#/practice';
+        LBQ.toast('已上传到 GitHub 题库', 'ok');
+      }, function (err) {
+        state.uploading = false;
+        btn.disabled = false;
+        btn.innerHTML = old;
+        showGenMsg({ error: '上传失败：' + err.message });
+      });
+    }
+  }
+
+  /* ---------------------------------------------------------------- GitHub 连接 */
+  function openConnect(opts) {
+    opts = opts || {};
+    var a = LBQ.puzzles.auth();
+    var connected = !!a;
+    var currentName = a && a.name ? a.name : (a && a.login ? a.login : '');
+    var modal = LBQ.openModal({
+      title: '连接 GitHub 题库',
+      subtitle: '题库文件在 Melba0/phalanxpuzzle 的 main 分支。连接后，网站里生成的题目会直接写入这个仓库。',
+      width: 'min(680px, 100%)',
+      body: '<div class="gh-conn">' +
+        '<a class="gh-repo" href="' + LBQ.puzzles.REPO_URL + '" target="_blank" rel="noopener">' +
+        '  <span class="gh-repo-ico">' + ICON('github') + '</span>' +
+        '  <span class="gh-repo-meta"><b>Melba0/phalanxpuzzle</b><em>main · puzzles.json · 公开仓库</em></span>' +
+        '  <span class="gh-repo-open">' + ICON('external') + '</span>' +
+        '</a>' +
+        '<div class="gh-status">' + (connected
+          ? '<span class="gh-badge">' + (a.push === false ? '已连接（只读）' : '已连接') + '</span><span>Token 已保存在本机。</span>'
+          : '<span class="gh-badge is-off">未连接</span><span>读取公开题库不需要 Token；上传/删除需要。</span>') + '</div>' +
+        '<ol class="gh-guide">' +
+        '  <li>打开 <a href="' + LBQ.puzzles.TOKEN_URL + '" target="_blank" rel="noopener">GitHub · Fine-grained tokens</a>，新建一个 Token。</li>' +
+        '  <li>Repository access 只选 <b>Melba0/phalanxpuzzle</b>。</li>' +
+        '  <li>Permissions → <b>Contents</b> 设为 <b>Read and write</b>。</li>' +
+        '  <li>生成后粘贴到下面；Token 只保存在本机浏览器。</li>' +
+        '</ol>' +
+        '<div class="field"><label>GitHub Token</label>' +
+        '<div class="gh-token"><input class="input mono" id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="' +
+        (connected ? '已保存 · 留空保持不变' : 'github_pat_…') + '"><button type="button" class="gh-eye" id="gh-eye">显示</button></div></div>' +
+        '<div class="field"><label>显示名（可选）</label><input class="input" id="gh-name" value="' + LBQ.escapeHTML(currentName) + '" placeholder="例如：Melba0" maxlength="40"></div>' +
+        '<div class="gh-msg" id="gh-msg"></div>' +
+        '<div class="gh-note">' + ICON('lock') + 'Token 只保存在本机 localStorage，只会发往 api.github.com。请勿在公用电脑上使用；可随时在 GitHub 撤销。</div>' +
+        (connected ? '<button type="button" class="gh-disconnect" id="gh-disconnect">断开连接</button>' : '') +
+        '</div>',
+      actions: [
+        { label: '取消', cls: 'btn-quiet' },
+        {
+          label: connected ? '重新验证' : '连接并测试', cls: 'btn-primary', icon: 'github', close: false,
+          onClick: function (api) { saveConnect(api); }
+        }
+      ]
+    });
+
+    var eye = modal.root.querySelector('#gh-eye');
+    if (eye) eye.addEventListener('click', function () {
+      var input = modal.root.querySelector('#gh-token');
+      if (input.type === 'password') { input.type = 'text'; eye.textContent = '隐藏'; }
+      else { input.type = 'password'; eye.textContent = '显示'; }
+    });
+    var disc = modal.root.querySelector('#gh-disconnect');
+    if (disc) disc.addEventListener('click', function () {
+      LBQ.puzzles.clearAuth();
+      LBQ.toast('已断开 GitHub 题库', '');
+      modal.close();
+      renderDbBar();
+      refreshPuzzles();
+    });
+
+    function ghMsg(text, type) {
+      var m = modal.root.querySelector('#gh-msg');
+      if (!m) return;
+      m.className = 'gh-msg' + (type ? ' is-' + type : '');
+      m.textContent = text || '';
+    }
+
+    function saveConnect(api) {
+      var input = modal.root.querySelector('#gh-token');
+      var nameInput = modal.root.querySelector('#gh-name');
+      var tok = (input.value || '').trim() || (a ? a.token : '');
+      var nm = (nameInput.value || '').trim();
+      var btn = api.foot.querySelector('.btn-primary');
+      if (!tok) { ghMsg('请填写 GitHub Token。', 'error'); return; }
+      var old = btn.innerHTML;
+      btn.disabled = true;
+      btn.textContent = '验证中…';
+      ghMsg('正在验证 Token 与仓库权限…', 'busy');
+      LBQ.puzzles.testToken(tok).then(function (r) {
+        btn.disabled = false;
+        btn.innerHTML = old;
+        if (!r.ok) { ghMsg(r.message, 'error'); return; }
+        if (!r.push) {
+          ghMsg('这个 Token 没有 Contents: Read and write 权限，无法上传。请修改 Token 权限后重试。', 'error');
+          return;
+        }
+        LBQ.puzzles.setAuth({ token: tok, name: nm || r.login || '', login: r.login || '', push: true });
+        LBQ.toast('已连接 GitHub 题库', 'ok');
+        api.close();
+        renderDbBar();
+        if (opts.onDone) opts.onDone();
+      }, function (err) {
+        btn.disabled = false;
+        btn.innerHTML = old;
+        ghMsg('验证失败：' + err.message, 'error');
+      });
+    }
   }
 
   /* ---------------------------------------------------------------- 路由 */
   function onEnter() {
     if (board) board._measure();
-    if (!state.puzzle) {
-      var all = allPuzzles();
-      if (all.length) loadPuzzle(all[0]); else { renderList(); renderPanel(); }
-    }
+    if (!state.puzzle && state.puzzles.length) loadPuzzle(state.puzzles[0]);
+    if (!state.fetchedAt || Date.now() - state.fetchedAt > 60000) refreshPuzzles();
+    renderDbBar();
     renderList();
+    if (board) board._measure();
   }
 
   LBQ.pages = LBQ.pages || {};
@@ -665,8 +868,8 @@
     init: init,
     onEnter: onEnter,
     openGenerator: openGenerator,
-    loadPuzzle: loadPuzzle
+    openConnect: openConnect,
+    loadPuzzle: loadPuzzle,
+    refresh: refreshPuzzles
   };
 })(window.LBQ = window.LBQ || {});
-
-

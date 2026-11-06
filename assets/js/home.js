@@ -77,15 +77,15 @@
 
       '<section class="section">' +
       '  <div class="wrap">' +
-      '    <div class="section-head">' +
+      '    <div class="section-head" data-reveal>' +
       '      <div><div class="eyebrow">五件事，一次做全</div><h2>从看懂规则，到亲手落子</h2></div>' +
-      '      <p>没有账号、没有联网、没有 AI。棋盘、教程、对弈与分析，都在一个静态页面里。</p>' +
+      '      <p>没有账号、没有后端、没有 AI。教程、对弈、分析、题库与编辑器，都在一个静态站点里。</p>' +
       '    </div>' +
       '    <div class="feature-grid">' +
-      feature('learn', '交互教程', '十个短课从线段讲到胜负。走错时，规则会告诉你为什么不行。', '#/learn', '进入教程') +
+      feature('learn', '交互教程', '十个短课从线段讲到胜负。走错时，规则会告诉你为什么不行。', '#/learn', '进入教程', { large: true }) +
       feature('sword', '本地对弈', '同一块棋盘轮流落子。悔棋、重做、翻转、记谱，一样不少。', '#/play', '开始对弈') +
       feature('target', '树形分析', '棋谱树、变例、兵力与对撞机会，只看客观数据，不含 AI。', '#/analysis', '打开分析') +
-      feature('spark', '练习题', '由局面 + 唯一解法生成题目，按顺序校验，保存在本机。', '#/practice', '去练习') +
+      feature('spark', '练习题', '由局面 + 唯一解法生成题目，上传到 GitHub 题库，按顺序校验。', '#/practice', '去练习') +
       feature('edit', '棋盘编辑器', '摆任意局面，设置持棋台与行棋方，直接进入对弈。', '#/editor', '打开编辑器') +
       '    </div>' +
       '  </div>' +
@@ -93,7 +93,7 @@
 
       '<section class="section section-rule-strip">' +
       '  <div class="wrap">' +
-      '    <div class="rule-strip">' +
+      '    <div class="rule-strip" data-reveal>' +
       '      <div class="rs-head"><div class="eyebrow">一局怎么走</div><h2>四步，就懂这盘棋</h2></div>' +
       '      <ol class="rs-steps">' +
       '        <li><span>01</span><b>选一条线段</b><p>同一直线上连续的己方棋子，整段是一个整体。</p></li>' +
@@ -107,7 +107,7 @@
 
       '<section class="section">' +
       '  <div class="wrap">' +
-      '    <div class="cta-band">' +
+      '    <div class="cta-band" data-reveal>' +
       '      <div>' +
       '        <div class="eyebrow">纯静态 · 打开即用</div>' +
       '        <h2>棋盘已经摆好，就等你落子。</h2>' +
@@ -126,17 +126,43 @@
     hero = new LBQ.HeroDemo();
     renderDots(-1);
     LBQ.pages.home._board = board;
+    LBQ.revealAll(el);
   }
 
-  function feature(icon, title, desc, href, cta) {
-    var ico = (icon === 'sword' || icon === 'target' || icon === 'edit' || icon === 'learn')
-      ? '<span class="feature-ico">' + ICON(icon) + '</span>'
-      : '<span class="feature-ico">' + ICON(icon) + '</span>';
-    return '<a class="feature" href="' + href + '">' +
-      ico +
+  var featureIndex = 0;
+  function feature(icon, title, desc, href, cta, opts) {
+    opts = opts || {};
+    featureIndex++;
+    var num = ('0' + featureIndex).slice(-2);
+    return '<a class="feature' + (opts.large ? ' feature-lg' : '') + '" href="' + href +
+      '" data-reveal style="--i:' + (featureIndex - 1) + '">' +
+      '<div class="feature-top"><span class="feature-ico">' + ICON(icon) + '</span>' +
+      '<span class="feature-num">' + num + '</span></div>' +
       '<h3>' + title + '</h3><p>' + desc + '</p>' +
+      (opts.large ? largeTags() : '') +
+      (opts.large ? miniBoard() : '') +
       '<span class="feature-link">' + cta + ICON('arrowRight') + '</span>' +
       '</a>';
+  }
+
+  function largeTags() {
+    return '<span class="feature-tags"><span>10 节短课</span><span>即时纠错</span><span>从零开始</span></span>';
+  }
+
+  function miniBoard() {
+    var cells = '';
+    for (var i = 0; i < 16; i++) cells += '<i></i>';
+    function pc(t, side, c, r) {
+      return '<span class="fv-pc" style="--c:' + c + ';--r:' + r + '">' + LBQ.pieceSVG(t, side) + '</span>';
+    }
+    return '<span class="feature-visual" aria-hidden="true">' +
+      '<span class="fv-board">' + cells +
+      pc('P', 0, 1, 4) + pc('P', 0, 2, 4) + pc('P', 0, 3, 4) +
+      pc('K', 1, 2, 1) +
+      '<span class="fv-arrow"></span>' +
+      '</span>' +
+      '<span class="fv-label">整段推进 · 1 格</span>' +
+      '</span>';
   }
 
   function renderDots(active) {
