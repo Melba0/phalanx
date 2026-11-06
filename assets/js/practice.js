@@ -762,6 +762,7 @@
     opts = opts || {};
     var a = LBQ.puzzles.auth();
     var connected = !!a;
+    var builtin = !!(a && a.builtin);
     var currentName = a && a.name ? a.name : (a && a.login ? a.login : '');
     var modal = LBQ.openModal({
       title: '连接 GitHub 题库',
@@ -773,9 +774,11 @@
         '  <span class="gh-repo-meta"><b>Melba0/phalanxpuzzle</b><em>main · puzzles.json · 公开仓库</em></span>' +
         '  <span class="gh-repo-open">' + ICON('external') + '</span>' +
         '</a>' +
-        '<div class="gh-status">' + (connected
-          ? '<span class="gh-badge">' + (a.push === false ? '已连接（只读）' : '已连接') + '</span><span>Token 已保存在本机。</span>'
-          : '<span class="gh-badge is-off">未连接</span><span>读取公开题库不需要 Token；上传/删除需要。</span>') + '</div>' +
+        '<div class="gh-status">' + (builtin
+          ? '<span class="gh-badge">默认 Token</span><span>站点内置，可直接上传/删除。</span>'
+          : (connected
+            ? '<span class="gh-badge">' + (a.push === false ? '已连接（只读）' : '已连接') + '</span><span>Token 已保存在本机。</span>'
+            : '<span class="gh-badge is-off">未连接</span><span>读取公开题库不需要 Token；上传/删除需要。</span>')) + '</div>' +
         '<ol class="gh-guide">' +
         '  <li>打开 <a href="' + LBQ.puzzles.TOKEN_URL + '" target="_blank" rel="noopener">GitHub · Fine-grained tokens</a>，新建一个 Token。</li>' +
         '  <li>Repository access 只选 <b>Melba0/phalanxpuzzle</b>。</li>' +
@@ -784,11 +787,13 @@
         '</ol>' +
         '<div class="field"><label>GitHub Token</label>' +
         '<div class="gh-token"><input class="input mono" id="gh-token" type="password" autocomplete="off" spellcheck="false" placeholder="' +
-        (connected ? '已保存 · 留空保持不变' : 'github_pat_…') + '"><button type="button" class="gh-eye" id="gh-eye">显示</button></div></div>' +
+        (builtin ? '默认 Token 已内置 · 留空保持不变' : (connected ? '已保存 · 留空保持不变' : 'github_pat_…')) + '"><button type="button" class="gh-eye" id="gh-eye">显示</button></div></div>' +
         '<div class="field"><label>显示名（可选）</label><input class="input" id="gh-name" value="' + LBQ.escapeHTML(currentName) + '" placeholder="例如：Melba0" maxlength="40"></div>' +
         '<div class="gh-msg" id="gh-msg"></div>' +
-        '<div class="gh-note">' + ICON('lock') + 'Token 只保存在本机 localStorage，只会发往 api.github.com。请勿在公用电脑上使用；可随时在 GitHub 撤销。</div>' +
-        (connected ? '<button type="button" class="gh-disconnect" id="gh-disconnect">断开连接</button>' : '') +
+        '<div class="gh-note">' + ICON('lock') + (builtin
+          ? '默认 Token 内置于站点，所有拿到这个页面的人都能上传/删除题库。只应把它用于这个公开题库仓库。'
+          : 'Token 只保存在本机 localStorage，只会发往 api.github.com。请勿在公用电脑上使用；可随时在 GitHub 撤销。') + '</div>' +
+        (connected && !builtin ? '<button type="button" class="gh-disconnect" id="gh-disconnect">断开连接</button>' : '') +
         '</div>',
       actions: [
         { label: '取消', cls: 'btn-quiet' },

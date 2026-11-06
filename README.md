@@ -1,6 +1,6 @@
 # Phalanx · 连兵棋（兵线会战）
 
-一个**纯静态、无后端、无 AI** 的连兵棋网页。整段推进、顶头对撞、俘虏打入、入阵升变——打开 `index.html` 就能下。题库由 GitHub 托管：公开读取，上传/删除需要一次浏览器内的 Token 连接。
+一个**纯静态、无后端、无 AI** 的连兵棋网页。整段推进、顶头对撞、俘虏打入、入阵升变——打开 `index.html` 就能下。题库由 GitHub 托管：站点已内置默认连接，打开即可上传/删除，也可以覆盖成自己的 Token。
 
 > 名称：**Phalanx**（方阵）  
 > 中文：**连兵棋 · 兵线会战**  
@@ -158,20 +158,21 @@ JSON 形如 `{v, size, turn, pieces:["wK@e1","bP@d7+"], trays:[[...],[]]}`；`+`
 题库仓库：**https://github.com/Melba0/phalanxpuzzle**（公开），数据文件为 `puzzles.json`。站点不再内置示例题；所有题目都来自这个仓库。
 
 - **读取**：未连接 Token 时从 `raw.githubusercontent.com` 读取公开文件；连过 Token 时走 GitHub Contents API。读取成功会缓存到本机，网络失败时显示「离线缓存」。
-- **上传**：在「练习题 → 连接」里填一次细粒度 Token（仅限该仓库、`Contents: Read and write`），之后「生成题目 → 上传到题库」会直接写入 `puzzles.json`。
+- **上传**：站点在 `assets/js/puzzles-config.js` 里内置了默认 Token，打开练习页即可直接「生成题目 → 上传到题库」，不用每次填写。所有拿到这个站点的人都会共享这个写权限；想换成自己的 Token，在「连接」里覆盖即可。
   - 校验要求：双方各恰好一枚王；解法是一条连续的合法走法序列；不支持括号变例。
   - 空仓库首次上传会自动创建 `puzzles.json` 和 `main` 分支（Contents API 失败时回退到 Git Data API）。
   - 题目字段：`id / title / code / solution / intro / hint / author / createdAt / side / steps`；`code` 是 `LBQ1.…` 局面代码，`solution` 是按顺序执行的走法数组。
-- **删除**：题目面板右上角的垃圾桶会从 `puzzles.json` 移除该题（需要可写 Token）。
+- **删除**：题目面板右上角的垃圾桶会从 `puzzles.json` 移除该题。
 - 解题时只有走出题目记录的下一步才会推进；走错会提示但不改棋盘。支持**提示**（高亮线段/截取俘虏段并给方向）、**看答案**、**重试**、**下一题**。
 - 「已解」状态仍只保存在本机（`phalanx.puzzles.solved`），不会写回 GitHub。
 
 ### Token 说明
 
-- Token 只保存在本机浏览器的 `localStorage`（`phalanx.github`），只会发往 `api.github.com`。
-- 建议使用 **Fine-grained token**：Repository access 只选 `Melba0/phalanxpuzzle`，Permissions → Contents → Read and write。
+- 默认 Token 写在 `assets/js/puzzles-config.js`，会随站点一起发布；等于**所有拿到这个页面的人都能上传/删除题库**。只应把它用于这个公开题库仓库。
+- 连接弹窗里可以粘贴自己的 Fine-grained Token 覆盖默认值；自定义 Token 保存在本机 `localStorage`（`phalanx.github`），只会发往 `api.github.com`。
+- 默认 Token 建议使用 **Fine-grained token**：Repository access 只选 `Melba0/phalanxpuzzle`，Permissions → Contents → Read and write。
 - 连接时会调用仓库元数据接口检查 `permissions.push`；没有写权限的 Token 会被拒绝。
-- 可随时在「连接」弹窗里断开，或去 GitHub 撤销 Token。
+- 想收回默认写权限：删除 `puzzles-config.js` 里的 token（或整个文件），并去 GitHub 撤销该 Token。
 
 ---
 
@@ -191,6 +192,7 @@ JSON 形如 `{v, size, turn, pieces:["wK@e1","bP@d7+"], trays:[[...],[]]}`；`+`
 │       ├── pieces.js         SVG 棋子与渐变
 │       ├── board.js          BoardView + TrayView（选段、方向箭头、吃子对比、落子预览）
 │       ├── ui.js             图标、toast、modal、confirm、音效、localStorage
+│       ├── puzzles-config.js 默认 GitHub Token（随站点发布，可删除）
 │       ├── puzzles.js        GitHub 题库（读取 / 上传 / 删除 / Token）
 │       ├── lessons.js        10 节教程内容
 │       ├── learn.js          教程页
@@ -215,7 +217,7 @@ JSON 形如 `{v, size, turn, pieces:["wK@e1","bP@d7+"], trays:[[...],[]]}`；`+`
 | --- | --- |
 | `phalanx.learn` | 教程完成进度 |
 | `phalanx.puzzles.solved` | 已解出的题目 id |
-| `phalanx.github` | GitHub Token / 显示名 / 权限（仅本机） |
+| `phalanx.github` | 自定义 GitHub Token（会覆盖默认 Token） |
 | `phalanx.puzzleCache` | 最近一次读取的题库缓存（离线用） |
 | `phalanx.sound` | 音效开关 |
 
@@ -227,7 +229,7 @@ JSON 形如 `{v, size, turn, pieces:["wK@e1","bP@d7+"], trays:[[...],[]]}`；`+`
 
 - 原生 JavaScript（ES5 语法风格，传统 `<script>`），无模块、无构建、无第三方运行时依赖；棋盘/棋子全部为内联 SVG 与 CSS。
 - 规则引擎在开发期与一份 Python 参考实现做过逐步交叉校验：5,160 个随机步的往返记谱、120 个随机局面的一致性和 1,440 次模糊测试全部通过；参考实现已按约定从项目中移除。
-- 题库写入使用 GitHub Contents API；空仓库回退到 Git Data API 创建首个提交。上传/读取/删除路径用本地 mock 做过完整流程测试；Token 权限与 401 响应在真实 GitHub API 上验证。
+- 题库写入使用 GitHub Contents API；空仓库回退到 Git Data API 创建首个提交。上传/读取/删除路径用本地 mock 做过完整流程测试；默认 Token 的真实仓库权限（`permissions.push: true`）已通过 GitHub API 验证。
 - 所有棋局规则与交互在浏览器本地计算：**没有随机、没有 AI、没有自建后端**；只有题库同步会访问 GitHub。
 
 ---

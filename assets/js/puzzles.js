@@ -20,6 +20,7 @@
   var TOKEN_URL = 'https://github.com/settings/personal-access-tokens/new';
   var AUTH_KEY = 'github';
   var CACHE_KEY = 'puzzleCache';
+  var DEFAULT_AUTH = window.PHALANX_DEFAULT_AUTH || null;
 
   /* ------------------------------------------------------------ 编码 */
   function b64encode(str) {
@@ -43,7 +44,9 @@
   /* ------------------------------------------------------------ 连接信息 */
   function auth() {
     var a = LBQ.store.get(AUTH_KEY, null);
-    return a && typeof a === 'object' && a.token ? a : null;
+    if (a && typeof a === 'object' && a.token) return a;
+    if (DEFAULT_AUTH && DEFAULT_AUTH.token) return DEFAULT_AUTH;
+    return null;
   }
   function token() { var a = auth(); return a ? a.token : ''; }
   function hasToken() { return !!token(); }
