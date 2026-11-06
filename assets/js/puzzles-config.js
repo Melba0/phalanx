@@ -6,7 +6,7 @@
    如需收回：删除下面的 token（或整个文件），也可以去 GitHub 撤销 Token。
    ========================================================================== */
 window.PHALANX_DEFAULT_AUTH = {
-  token: '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',
+  token: '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',
   name: '同学',
   push: true,
   builtin: true
